@@ -4,9 +4,9 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 import bitsandbytes as bnb
-from models.RoPE import RotaryEmbedding, apply_rotary_emb
-from models.base import BaseTransformer
-from models.model_config import Lexis2ModelConfig
+from src.models.RoPE import RotaryEmbedding, apply_rotary_emb
+from src.models.base import BaseTransformer
+from src.models.model_config import Lexis2ModelConfig
 
 
 class CausalSelfAttention(nn.Module):

@@ -5,8 +5,8 @@ import torch
 import torch.nn.functional as F
 from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 
-from models.base import BaseTransformer
-from models.model_config import Lexis1ModelConfig
+from src.models.base import BaseTransformer
+from src.models.model_config import Lexis1ModelConfig
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, config: Lexis1ModelConfig, attn_type: str = "global"):
