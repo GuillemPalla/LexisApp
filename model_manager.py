@@ -1,11 +1,10 @@
 import shutil
 from pathlib import Path
 from platformdirs import user_data_dir
-from huggingface_hub import list_repo_files, hf_hub_download
+from huggingface_hub import list_repo_files, hf_hub_download, repo_info
 from tqdm import tqdm
 
 from models_data import AVAILABLE_MODELS
-from src.tokenizer.registry import TOKENIZER_REGISTRY
 
 APP_NAME = "LexisApp"
 DATA_DIR = Path(user_data_dir(APP_NAME))
@@ -92,3 +91,23 @@ def return_model_tokenizer(model_name: str) -> str:
     """Returns the tokenizer instance for the model."""
     model_info = AVAILABLE_MODELS[model_name]
     return model_info["tokenizer"]
+
+_size_cache: dict[str, float] = {}
+
+def get_model_size_mb(model_name: str) -> float:
+    """Fetches the actual repo size from Hugging Face Hub in MB."""
+    if model_name in _size_cache:
+        return _size_cache[model_name]
+    
+    model_info = AVAILABLE_MODELS[model_name]
+    repo_id = model_info["repo_id"]
+    info = repo_info(repo_id, repo_type="model", files_metadata=True)
+
+    total_bytes = sum(
+        s.size for s in (info.siblings or [])
+        if s.size and not _should_ignore(s.rfilename)
+    )
+
+    size_mb = round(total_bytes / (1024 * 1024), 1)
+    _size_cache[model_name] = size_mb
+    return size_mb

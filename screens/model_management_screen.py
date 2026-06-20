@@ -7,6 +7,7 @@ from textual.widgets import Header, Footer, Button, Label, ListView, ListItem, S
 from model_inference import InferenceEngine
 from model_manager import (
     download_model,
+    get_model_size_mb,
     is_model_downloaded,
     return_model_path,
     return_model_tokenizer,
@@ -120,12 +121,13 @@ class ModelManagementScreen(Screen):
 
     def update_model_details(self, model_id: str) -> None:
         info = AVAILABLE_MODELS[model_id]
+        size_mb = get_model_size_mb(model_id)
 
         self.query_one("#model-title", Static).update(f"[b][underline]{info['title']}[/underline][/b]\n")
         self.query_one("#model-description", Static).update(f"[i]{info['description']}[/i]\n")
         self.query_one("#model-params", Static).update(info['parameters'])
         self.query_one("#model-arch", Static).update(info['architecture'])
-        self.query_one("#model-size", Static).update(f"{info['size_mb']} MB")
+        self.query_one("#model-size", Static).update(f"{size_mb} MB")
 
         action_btn = self.query_one("#action-btn", Button)
         action_btn.disabled = False
@@ -134,7 +136,7 @@ class ModelManagementScreen(Screen):
             action_btn.label = "Load Model"
             action_btn.variant = "success"
         else:
-            action_btn.label = f"Download ({info['size_mb']} MB)"
+            action_btn.label = f"Download ({size_mb} MB)"
             action_btn.variant = "primary"
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -152,9 +154,9 @@ class ModelManagementScreen(Screen):
         try:
             if not is_model_downloaded(model_name):
                 info = AVAILABLE_MODELS[model_name]
-                
+                size_mb = get_model_size_mb(model_name)
                 # Push the warning modal and wait for the user's choice
-                proceed = await self.app.push_screen_wait(ConfirmDownloadScreen(info['size_mb']))
+                proceed = await self.app.push_screen_wait(ConfirmDownloadScreen(size_mb))
                 if not proceed:
                     return # Exit early, the finally block will re-enable UI
 
