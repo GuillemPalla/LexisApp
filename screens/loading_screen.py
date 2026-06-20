@@ -71,6 +71,56 @@ class ConfirmDownloadScreen(ModalScreen[bool]):
         else:
             self.dismiss(False)
 
+class ConfirmDeleteScreen(ModalScreen[bool]):
+    DEFAULT_CSS = """
+    ConfirmDeleteScreen {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.6);
+    }
+
+    #warning-card {
+        width: 70;
+        height: 15;
+        padding: 2 3;
+        background: $surface;
+        border: round $accent;
+    }
+
+    .warning-text {
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    #button-layout {
+        layout: horizontal;
+        align: center middle;
+        margin-top: 1;
+    }
+    
+    Button {
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, size_mb: float) -> None:
+        super().__init__()
+        self.size_mb = size_mb
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="warning-card"):
+            yield Label(f"[bold]Warning:[/bold] You are about to delete [bold]{self.size_mb} MB[/bold].", classes="warning-text")
+            yield Label("This action [red]cannot be undone[/red] once started.", classes="warning-text")
+            yield Label("Do you want to proceed?", classes="warning-text")
+            
+            with Horizontal(id="button-layout"):
+                yield Button("Proceed", id="proceed-btn", variant="error")
+                yield Button("Cancel", id="cancel-btn", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "proceed-btn":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
 
 class DownloadScreen(Screen):
     """

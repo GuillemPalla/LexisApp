@@ -6,6 +6,7 @@ from textual.widgets import Header, Footer, Button, Label, ListView, ListItem, S
 
 from model_inference import InferenceEngine
 from model_manager import (
+    delete_model,
     download_model,
     get_model_size_mb,
     is_model_downloaded,
@@ -13,7 +14,7 @@ from model_manager import (
     return_model_tokenizer,
 )
 from models_data import AVAILABLE_MODELS
-from screens.loading_screen import DownloadScreen, LoadingScreen, ConfirmDownloadScreen
+from screens.loading_screen import ConfirmDeleteScreen, DownloadScreen, LoadingScreen, ConfirmDownloadScreen
 
 
 class ModelManagementScreen(Screen):
@@ -74,6 +75,12 @@ class ModelManagementScreen(Screen):
         width: 25;
         height: 3;
     }
+
+    #delete-btn {
+        width: 25;
+        height: 3;
+        margin-left: 1;
+    }
     """
 
     def __init__(self):
@@ -106,6 +113,7 @@ class ModelManagementScreen(Screen):
 
                 with Horizontal(id="action-bar"):
                     yield Button("Select a model", id="action-btn", variant="primary", disabled=True)
+                    yield Button("Delete Model", id="delete-btn", variant="error", disabled=True)
 
         yield Footer()
 
@@ -130,29 +138,68 @@ class ModelManagementScreen(Screen):
         self.query_one("#model-size", Static).update(f"{size_mb} MB")
 
         action_btn = self.query_one("#action-btn", Button)
+        delete_btn = self.query_one("#delete-btn", Button)
         action_btn.disabled = False
 
         if is_model_downloaded(model_id):
             action_btn.label = "Load Model"
             action_btn.variant = "success"
+            delete_btn.disabled = False
         else:
             action_btn.label = f"Download ({size_mb} MB)"
             action_btn.variant = "primary"
+            delete_btn.disabled = True
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "action-btn" and self.selected_model_id:
             self.manage_model_workflow(self.selected_model_id)
+        elif event.button.id == "delete-btn" and self.selected_model_id:
+            self.delete_model_workflow(self.selected_model_id)
+
+    @work(exclusive=True)
+    async def delete_model_workflow(self, model_name: str) -> None:
+        action_btn = self.query_one("#action-btn")
+        delete_btn = self.query_one("#delete-btn")
+        model_list = self.query_one("#model-list")
+
+        action_btn.disabled = True
+        delete_btn.disabled = True
+        model_list.disabled = True
+
+        try:
+            confirmed = await self.app.push_screen_wait(ConfirmDeleteScreen(model_name))
+            if not confirmed:
+                return
+
+            worker = self.run_delete(model_name)
+            await worker.wait()
+
+        except Exception as e:
+            self.query_one("#model-title", Static).update(f"[red]Error deleting model: {str(e)}[/red]")
+
+        finally:
+            action_btn.disabled = False
+            model_list.disabled = False
+            if self.selected_model_id:
+                self.update_model_details(self.selected_model_id)
+
+    @work(thread=True)
+    def run_delete(self, model_name: str) -> None:
+        delete_model(model_name)
 
     @work(exclusive=True)
     async def manage_model_workflow(self, model_name: str) -> None:
         action_btn = self.query_one("#action-btn")
+        delete_btn = self.query_one("#delete-btn")
         model_list = self.query_one("#model-list")
 
         action_btn.disabled = True
+        delete_btn.disabled = True
         model_list.disabled = True
 
         try:
             if not is_model_downloaded(model_name):
+
                 info = AVAILABLE_MODELS[model_name]
                 size_mb = get_model_size_mb(model_name)
                 # Push the warning modal and wait for the user's choice

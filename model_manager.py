@@ -81,6 +81,13 @@ def download_model(model_name: str, progress_callback=None) -> Path:
     return target_dir
 
 
+def delete_model(model_name: str) -> None:
+    """Deletes the local model directory from disk."""
+    model_dir = get_local_model_dir(model_name)
+    if model_dir.exists():
+        shutil.rmtree(model_dir)
+
+
 def return_model_path(model_name: str) -> Path:
     """Returns the path to the model directory."""
     if not is_model_downloaded(model_name):
