@@ -13,42 +13,65 @@ class ChatScreen(Screen):
     """Text completion screen — the model continues from whatever the user writes."""
 
     CSS = """
+    ChatScreen {
+        background: $background;
+    }
+
     #main-chat {
         width: 100%;
-        height: 100%;
-        padding: 1;
+        height: 1fr;
+        layout: vertical;
+        padding: 3 4;
+        background: $background;
+        hatch: right $primary 12%;
     }
 
     #completions-log {
-        background: $boost;
-        border: tall $background;
+        background: $surface-darken-1;
+        border: tall $primary 30%;
         height: 1fr;
-        margin-bottom: 1;
+        margin-bottom: 2;
+        padding: 1 2;
+        scrollbar-gutter: stable;
+    }
+
+    #completions-log:focus {
+        border: tall $primary;
     }
 
     #prompt-label {
         height: auto;
-        padding: 0 1;
-        color: $text-muted;
+        padding: 0 2 1 2;
+        color: $text-secondary;
+        text-style: dim italic;
     }
 
     TextArea {
         height: 20%;
         min-height: 4;
-        border: tall $background;
+        margin-bottom: 0;
+        padding: 1 2;
+        border: tall $primary 30%;
+        background: $surface-darken-1;
     }
 
     TextArea:focus {
         border: tall $accent;
+        background: $background;
     }
 
     #actions-row {
         height: auto;
-        margin-top: 1;
+        padding: 2 3;
+        margin-top: 2;
+        align: left middle;
+        background: $surface-darken-1;
+        border-top: hkey $primary;
     }
 
-    Button {
-        margin-right: 1;
+    #actions-row Button {
+        margin-right: 2;
+        min-width: 16;
     }
     """
 

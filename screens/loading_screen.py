@@ -3,13 +3,74 @@ from textual.containers import Center, Vertical, Horizontal
 from textual.screen import Screen, ModalScreen
 from textual.widgets import Button, Label, LoadingIndicator, ProgressBar, Static
 
+
+# ── Shared overlay / card CSS ─────────────────────────────────────────────────
+
+OVERLAY_CSS = """
+.overlay-screen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.65);
+}
+
+.overlay-card {
+    width: 70;
+    height: auto;
+    padding: 3 4;
+    background: $background;
+    border: tall $primary 30%;
+    hatch: right $primary 12%;
+}
+
+.overlay-title {
+    text-style: bold underline;
+    color: $text-warning;
+    text-align: center;
+    margin-bottom: 2;
+    padding: 0 1;
+}
+
+.overlay-text {
+    text-align: center;
+    margin-bottom: 2;
+    padding: 0 2;
+    color: $text-secondary;
+    height: auto;
+}
+
+.overlay-text-strong {
+    color: $text;
+    text-style: bold;
+}
+
+#button-layout {
+    layout: horizontal;
+    align: center middle;
+    margin-top: 2;
+    padding-top: 1;
+    border-top: hkey $primary;
+}
+
+#button-layout Button {
+    margin: 0 2;
+    min-width: 16;
+}
+"""
+
+
 class LoadingScreen(Screen):
     """Reusable transparent modal displaying a loading animation overlay."""
 
     DEFAULT_CSS = """
     LoadingScreen {
         align: center middle;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.65);
+    }
+
+    LoadingScreen LoadingIndicator {
+        padding: 3 4;
+        background: $background;
+        border: tall $primary 30%;
+        hatch: right $primary 12%;
     }
     """
 
@@ -21,33 +82,10 @@ class LoadingScreen(Screen):
 class ConfirmDownloadScreen(ModalScreen[bool]):
     """Warning modal shown before an un-cancellable download begins."""
 
-    DEFAULT_CSS = """
+    DEFAULT_CSS = OVERLAY_CSS + """
     ConfirmDownloadScreen {
         align: center middle;
-        background: rgba(0, 0, 0, 0.6);
-    }
-
-    #warning-card {
-        width: 70;
-        height: 15;
-        padding: 2 3;
-        background: $surface;
-        border: round $accent;
-    }
-
-    .warning-text {
-        text-align: center;
-        margin-bottom: 1;
-    }
-
-    #button-layout {
-        layout: horizontal;
-        align: center middle;
-        margin-top: 1;
-    }
-    
-    Button {
-        margin: 0 1;
+        background: rgba(0, 0, 0, 0.65);
     }
     """
 
@@ -56,11 +94,18 @@ class ConfirmDownloadScreen(ModalScreen[bool]):
         self.size_mb = size_mb
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="warning-card"):
-            yield Label(f"[bold]Warning:[/bold] You are about to download [bold]{self.size_mb} MB[/bold].", classes="warning-text")
-            yield Label("This download [red]cannot be cancelled[/red] once started.", classes="warning-text")
-            yield Label("Do you want to proceed?", classes="warning-text")
-            
+        with Vertical(id="warning-card", classes="overlay-card"):
+            yield Label("Download confirmation", classes="overlay-title")
+            yield Label(
+                f"You are about to download [bold]{self.size_mb} MB[/bold].",
+                classes="overlay-text",
+            )
+            yield Label(
+                "This download [red]cannot be cancelled[/red] once started.",
+                classes="overlay-text",
+            )
+            yield Label("Do you want to proceed?", classes="overlay-text")
+
             with Horizontal(id="button-layout"):
                 yield Button("Proceed", id="proceed-btn", variant="error")
                 yield Button("Cancel", id="cancel-btn", variant="primary")
@@ -70,35 +115,13 @@ class ConfirmDownloadScreen(ModalScreen[bool]):
             self.dismiss(True)
         else:
             self.dismiss(False)
+
 
 class ConfirmDeleteScreen(ModalScreen[bool]):
-    DEFAULT_CSS = """
+    DEFAULT_CSS = OVERLAY_CSS + """
     ConfirmDeleteScreen {
         align: center middle;
-        background: rgba(0, 0, 0, 0.6);
-    }
-
-    #warning-card {
-        width: 70;
-        height: 15;
-        padding: 2 3;
-        background: $surface;
-        border: round $accent;
-    }
-
-    .warning-text {
-        text-align: center;
-        margin-bottom: 1;
-    }
-
-    #button-layout {
-        layout: horizontal;
-        align: center middle;
-        margin-top: 1;
-    }
-    
-    Button {
-        margin: 0 1;
+        background: rgba(0, 0, 0, 0.65);
     }
     """
 
@@ -107,11 +130,18 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
         self.size_mb = size_mb
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="warning-card"):
-            yield Label(f"[bold]Warning:[/bold] You are about to delete [bold]{self.size_mb} MB[/bold].", classes="warning-text")
-            yield Label("This action [red]cannot be undone[/red] once started.", classes="warning-text")
-            yield Label("Do you want to proceed?", classes="warning-text")
-            
+        with Vertical(id="warning-card", classes="overlay-card"):
+            yield Label("Delete confirmation", classes="overlay-title")
+            yield Label(
+                f"You are about to delete [bold]{self.size_mb}[/bold].",
+                classes="overlay-text",
+            )
+            yield Label(
+                "This action [red]cannot be undone[/red].",
+                classes="overlay-text",
+            )
+            yield Label("Do you want to proceed?", classes="overlay-text")
+
             with Horizontal(id="button-layout"):
                 yield Button("Proceed", id="proceed-btn", variant="error")
                 yield Button("Cancel", id="cancel-btn", variant="primary")
@@ -121,6 +151,7 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
             self.dismiss(True)
         else:
             self.dismiss(False)
+
 
 class DownloadScreen(Screen):
     """
@@ -128,40 +159,36 @@ class DownloadScreen(Screen):
     Exposes update_progress(downloaded, total, filename).
     """
 
-    DEFAULT_CSS = """
+    DEFAULT_CSS = OVERLAY_CSS + """
     DownloadScreen {
         align: center middle;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.65);
     }
 
     #download-card {
         width: 60;
-        height: auto;
-        padding: 2 3;
-        background: $surface;
-        border: round $accent;
-    }
-
-    #dl-title {
-        text-style: bold;
-        margin-bottom: 1;
-        color: $text;
     }
 
     #dl-filename {
         color: $text-muted;
-        margin-bottom: 1;
+        text-style: dim italic;
+        margin-bottom: 2;
+        padding: 0 2;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
     #dl-progress {
         width: 100%;
-        margin-bottom: 1;
+        margin-bottom: 2;
+        padding: 0 2;
     }
 
     #dl-stats {
-        color: $text-muted;
+        color: $text-success;
+        text-style: bold;
+        text-align: center;
+        padding: 0 2;
     }
     """
 
@@ -171,8 +198,8 @@ class DownloadScreen(Screen):
 
     def compose(self) -> ComposeResult:
         with Center():
-            with Vertical(id="download-card"):
-                yield Static("Downloading model…", id="dl-title")
+            with Vertical(id="download-card", classes="overlay-card"):
+                yield Static("Downloading model…", id="dl-title", classes="overlay-title")
                 yield Static("", id="dl-filename")
                 yield ProgressBar(total=100, show_eta=False, id="dl-progress")
                 yield Static("", id="dl-stats")
