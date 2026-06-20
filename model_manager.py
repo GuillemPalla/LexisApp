@@ -4,16 +4,12 @@ from platformdirs import user_data_dir
 from huggingface_hub import list_repo_files, hf_hub_download
 from tqdm import tqdm
 
+from models_data import AVAILABLE_MODELS
+from src.tokenizer.registry import TOKENIZER_REGISTRY
+
 APP_NAME = "LexisApp"
 DATA_DIR = Path(user_data_dir(APP_NAME))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-HF_USERNAME = "GuillemPallares"
-
-AVAILABLE_MODELS = {
-    "Lexis1-TS-1M": {"repo_id": f"{HF_USERNAME}/Lexis1-TS-1M"},
-    "Lexis2-OS-110M": {"repo_id": f"{HF_USERNAME}/Lexis2-OS-110M"},
-}
 
 IGNORE_PATTERNS = {"*.md", ".gitattributes", "README.md"}
 
@@ -91,3 +87,8 @@ def return_model_path(model_name: str) -> Path:
     if not is_model_downloaded(model_name):
         raise FileNotFoundError("Model not downloaded yet.")
     return get_local_model_dir(model_name)
+
+def return_model_tokenizer(model_name: str) -> str:
+    """Returns the tokenizer instance for the model."""
+    model_info = AVAILABLE_MODELS[model_name]
+    return model_info["tokenizer"]

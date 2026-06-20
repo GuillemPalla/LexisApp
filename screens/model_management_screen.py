@@ -1,25 +1,18 @@
-import time
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Header, Footer, Button, Label, ListView, ListItem, Static
 
+from model_inference import InferenceEngine
 from model_manager import (
     download_model,
     is_model_downloaded,
     return_model_path,
+    return_model_tokenizer,
 )
-from models_data import AVAILABLE_MODELS_INFO
+from models_data import AVAILABLE_MODELS
 from screens.loading_screen import DownloadScreen, LoadingScreen, ConfirmDownloadScreen
-
-
-class InferenceEngine:
-    def __init__(self, model_path):
-        time.sleep(1)
-
-    def generate_stream(self, prompt: str):
-        yield f"Echo response to: {prompt}"
 
 
 class ModelManagementScreen(Screen):
@@ -93,7 +86,7 @@ class ModelManagementScreen(Screen):
             with Vertical(id="left-pane"):
                 yield Label(" Available Models", id="list-header")
                 with ListView(id="model-list"):
-                    for model_id in AVAILABLE_MODELS_INFO.keys():
+                    for model_id in AVAILABLE_MODELS.keys():
                         yield ListItem(Label(f"• {model_id}"), id=model_id)
 
             with Vertical(id="right-pane"):
@@ -126,7 +119,7 @@ class ModelManagementScreen(Screen):
             self.update_model_details(self.selected_model_id)
 
     def update_model_details(self, model_id: str) -> None:
-        info = AVAILABLE_MODELS_INFO[model_id]
+        info = AVAILABLE_MODELS[model_id]
 
         self.query_one("#model-title", Static).update(f"[b][underline]{info['title']}[/underline][/b]\n")
         self.query_one("#model-description", Static).update(f"[i]{info['description']}[/i]\n")
@@ -158,7 +151,7 @@ class ModelManagementScreen(Screen):
 
         try:
             if not is_model_downloaded(model_name):
-                info = AVAILABLE_MODELS_INFO[model_name]
+                info = AVAILABLE_MODELS[model_name]
                 
                 # Push the warning modal and wait for the user's choice
                 proceed = await self.app.push_screen_wait(ConfirmDownloadScreen(info['size_mb']))
@@ -204,4 +197,5 @@ class ModelManagementScreen(Screen):
     @work(thread=True)
     def run_model_initialization(self, model_name: str) -> InferenceEngine:
         model_path = return_model_path(model_name)
-        return InferenceEngine(model_path)
+        tokenizer_name = return_model_tokenizer(model_name)
+        return InferenceEngine(model_path, tokenizer_name)
