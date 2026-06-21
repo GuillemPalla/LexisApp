@@ -162,6 +162,7 @@ class ModelManagementScreen(Screen):
             engine = worker.result
 
             self.app.engine = engine
+            self.app.loaded_model_id = model_name
             self.app.pop_screen()
             self.app.switch_screen("chat")
 

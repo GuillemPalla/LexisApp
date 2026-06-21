@@ -9,6 +9,7 @@ from textual.screen import Screen
 from textual.widgets import Header, Footer, Button, RichLog, TextArea, Label, Static
 
 from model_inference import DEFAULT_PRESET_KEY, PRESET_ORDER, SAMPLING_PRESETS
+from models_data import AVAILABLE_MODELS
 from screens.modals import ChatInfoModal, SamplingProfileModal
 
 _SAMPLING_BTN_MIN_WIDTH = max(len(f"⚙ {SAMPLING_PRESETS[key].label}") for key in PRESET_ORDER) + 2
@@ -75,9 +76,12 @@ class ChatScreen(Screen):
         min-width: 8;
     }
 
-    #top-bar-spacer {
+    #loaded-model-title {
         width: 1fr;
-        height: 1;
+        text-align: center;
+        text-style: bold;
+        color: $text;
+        content-align: center middle;
     }
 
     #actions-row {
@@ -113,7 +117,7 @@ class ChatScreen(Screen):
         with Vertical(id="main-chat"):
             with Horizontal(id="chat-top-bar"):
                 yield Button("Back", id="back-btn", variant="error")
-                yield Static("", id="top-bar-spacer")
+                yield Static("", id="loaded-model-title")
                 yield Button("⚠ Important Information", id="info-btn", variant="warning")
             yield RichLog(id="completions-log", highlight=False, markup=True, wrap=True)
             yield Label("Write your text and the model will continue it:", id="prompt-label")
@@ -127,12 +131,21 @@ class ChatScreen(Screen):
         if self.app.engine:
             self._sampling_key = self.app.engine.sampling_preset_key
         self._update_sampling_button()
+        self._update_model_title()
         self.query_one("#prompt-input").focus()
 
     def on_screen_resume(self) -> None:
+        self._update_model_title()
         if not self._info_shown_this_visit:
             self._info_shown_this_visit = True
             self.call_after_refresh(self._show_info_modal)
+
+    def _update_model_title(self) -> None:
+        title = ""
+        model_id = self.app.loaded_model_id
+        if model_id and model_id in AVAILABLE_MODELS:
+            title = AVAILABLE_MODELS[model_id]["title"]
+        self.query_one("#loaded-model-title", Static).update(title)
 
     def _show_info_modal(self) -> None:
         self.app.push_screen(ChatInfoModal())

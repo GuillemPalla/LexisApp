@@ -13,6 +13,7 @@ class LexisApp(App):
     def __init__(self):
         super().__init__()
         self.engine = None
+        self.loaded_model_id: str | None = None
     
     def on_mount(self) -> None:
         self.theme = "gruvbox"
