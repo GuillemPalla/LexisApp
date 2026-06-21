@@ -6,9 +6,12 @@ from textual import work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Button, RichLog, TextArea, Label
+from textual.widgets import Header, Footer, Button, RichLog, TextArea, Label, Static
 
-from screens.modals import ChatInfoModal
+from model_inference import DEFAULT_PRESET_KEY, PRESET_ORDER, SAMPLING_PRESETS
+from screens.modals import ChatInfoModal, SamplingProfileModal
+
+_SAMPLING_BTN_MIN_WIDTH = max(len(f"⚙ {SAMPLING_PRESETS[key].label}") for key in PRESET_ORDER) + 2
 
 
 class ChatScreen(Screen):
@@ -62,6 +65,21 @@ class ChatScreen(Screen):
         background: $background;
     }
 
+    #chat-top-bar {
+        height: auto;
+        padding: 0 2 1 2;
+        align: left middle;
+    }
+
+    #back-btn {
+        min-width: 8;
+    }
+
+    #top-bar-spacer {
+        width: 1fr;
+        height: 1;
+    }
+
     #actions-row {
         height: auto;
         padding: 1 2;
@@ -76,14 +94,8 @@ class ChatScreen(Screen):
         min-width: 16;
     }
 
-    #chat-top-bar {
-        height: auto;
-        align: right middle;
-        padding: 0 2 1 0;
-    }
-
-    #info-btn {
-        min-width: 24;
+    #sampling-btn {
+        min-width: 28;
     }
     """
 
@@ -94,21 +106,27 @@ class ChatScreen(Screen):
         self._streaming: bool = False
         self._cancel_event: threading.Event = threading.Event()
         self._info_shown_this_visit: bool = False
+        self._sampling_key: str = DEFAULT_PRESET_KEY
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="main-chat"):
             with Horizontal(id="chat-top-bar"):
+                yield Button("Back", id="back-btn", variant="error")
+                yield Static("", id="top-bar-spacer")
                 yield Button("⚠ Important Information", id="info-btn", variant="warning")
             yield RichLog(id="completions-log", highlight=False, markup=True, wrap=True)
             yield Label("Write your text and the model will continue it:", id="prompt-label")
             yield TextArea(id="prompt-input")
             with Horizontal(id="actions-row"):
                 yield Button("Continue", id="send-btn", variant="success")
-                yield Button("Switch Model", id="back-btn", variant="error")
+                yield Button("⚙ Sampling", id="sampling-btn", variant="default")
         yield Footer()
 
     def on_mount(self) -> None:
+        if self.app.engine:
+            self._sampling_key = self.app.engine.sampling_preset_key
+        self._update_sampling_button()
         self.query_one("#prompt-input").focus()
 
     def on_screen_resume(self) -> None:
@@ -118,6 +136,26 @@ class ChatScreen(Screen):
 
     def _show_info_modal(self) -> None:
         self.app.push_screen(ChatInfoModal())
+
+    def _update_sampling_button(self) -> None:
+        preset = SAMPLING_PRESETS[self._sampling_key]
+        label = f"⚙ {preset.label}"
+        btn = self.query_one("#sampling-btn", Button)
+        btn.label = label
+        btn.styles.min_width = max(len(label) + 2, _SAMPLING_BTN_MIN_WIDTH)
+
+    def _apply_sampling_preset(self, key: str) -> None:
+        self._sampling_key = key
+        if self.app.engine:
+            self.app.engine.set_sampling_preset(key)
+        self._update_sampling_button()
+
+    def _open_sampling_modal(self) -> None:
+        def on_result(key: str | None) -> None:
+            if key and key in SAMPLING_PRESETS:
+                self._apply_sampling_preset(key)
+
+        self.app.push_screen(SamplingProfileModal(self._sampling_key), on_result)
 
     def _reset(self) -> None:
         """Cancel any active generation and clear all state and UI."""
@@ -138,6 +176,11 @@ class ChatScreen(Screen):
         send_btn.label = "Continue"
         send_btn.variant = "success"
         send_btn.disabled = False
+
+        self._set_sampling_controls_disabled(False)
+
+    def _set_sampling_controls_disabled(self, disabled: bool) -> None:
+        self.query_one("#sampling-btn", Button).disabled = disabled
 
     # Rendering
 
@@ -172,6 +215,8 @@ class ChatScreen(Screen):
             self.app.switch_screen("management")
         elif event.button.id == "info-btn":
             self._show_info_modal()
+        elif event.button.id == "sampling-btn":
+            self._open_sampling_modal()
 
     def _cancel_generation(self) -> None:
         """Signal the streaming worker to stop."""
@@ -197,6 +242,7 @@ class ChatScreen(Screen):
         send_btn.variant = "warning"
         send_btn.disabled = False
 
+        self._set_sampling_controls_disabled(True)
         self._cancel_event.clear()
         self._streaming = True
 
@@ -231,6 +277,7 @@ class ChatScreen(Screen):
             send_btn.label = "Continue"
             send_btn.variant = "success"
             send_btn.disabled = False
+            self._set_sampling_controls_disabled(False)
             self.query_one("#prompt-input").focus()
 
         self.app.call_from_thread(_finish)

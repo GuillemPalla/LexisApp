@@ -5,9 +5,11 @@ Reusable modal dialogs for the model-management screen.
 """
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Label, ListItem, ListView, Static
+
+from model_inference import PRESET_ORDER, SAMPLING_PRESETS
 
 
 # ── Shared modal CSS ──────────────────────────────────────────────────────────
@@ -226,3 +228,144 @@ class ChatInfoModal(ModalScreen):
 
     def action_dismiss(self) -> None:
         self.dismiss()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Chat screen — sampling profile picker
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SamplingProfileModal(ModalScreen[str | None]):
+    """Modal: choose a sampling profile with description and parameter details."""
+
+    BINDINGS = [("escape", "cancel", "Close")]
+
+    CSS = MODAL_CSS + """
+    SamplingProfileModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.65);
+    }
+
+    SamplingProfileModal .modal-dialog {
+        width: 90%;
+        max-width: 100;
+        height: auto;
+        max-height: 85%;
+        padding: 2 3;
+    }
+
+    .sampling-modal-title {
+        text-style: bold underline;
+        height: auto;
+        margin-bottom: 1;
+        padding: 0 1;
+        color: $text-warning;
+        text-align: center;
+        width: 100%;
+    }
+
+    .sampling-modal-hint {
+        height: auto;
+        margin-bottom: 2;
+        padding: 0 2;
+        color: $text-secondary;
+        text-style: dim italic;
+        text-align: center;
+        width: 100%;
+    }
+
+    #preset-scroll {
+        height: auto;
+        max-height: 28;
+        margin-bottom: 2;
+        border: tall $primary 25%;
+        background: $surface-darken-1;
+    }
+
+    #preset-list {
+        height: auto;
+        padding: 0 1;
+    }
+
+    #preset-list > ListItem {
+        padding: 1 2;
+        margin: 1 0;
+        border: tall $primary 20%;
+        background: $background;
+    }
+
+    #preset-list > ListItem:hover {
+        background: $surface-darken-1;
+    }
+
+    #preset-list:focus > ListItem.-active {
+        background: $primary 20%;
+        border: tall $accent;
+    }
+
+    .preset-title {
+        text-style: bold;
+        height: auto;
+        width: 100%;
+    }
+
+    .preset-desc {
+        height: auto;
+        width: 100%;
+        margin: 1 0;
+        color: $text-secondary;
+        text-style: dim;
+    }
+
+    .preset-params {
+        height: auto;
+        width: 100%;
+        color: $accent;
+    }
+
+    .sampling-modal-close {
+        width: 100%;
+        height: auto;
+    }
+    """
+
+    def __init__(self, current_key: str) -> None:
+        super().__init__()
+        self.current_key = current_key
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Label("⚙  Sampling Profile", classes="sampling-modal-title")
+            yield Static(
+                "Choose how randomly the model picks each next token.",
+                classes="sampling-modal-hint",
+            )
+            with ScrollableContainer(id="preset-scroll"):
+                with ListView(id="preset-list"):
+                    for key in PRESET_ORDER:
+                        preset = SAMPLING_PRESETS[key]
+                        marker = "● " if key == self.current_key else "  "
+                        yield ListItem(
+                            Label(f"{marker}{preset.label}", classes="preset-title"),
+                            Static(preset.description, classes="preset-desc"),
+                            Static(preset.params_summary(), classes="preset-params"),
+                            id=key,
+                        )
+            yield Button("Cancel", variant="default", id="cancel-sampling", classes="sampling-modal-close")
+
+    def on_mount(self) -> None:
+        preset_list = self.query_one("#preset-list", ListView)
+        try:
+            preset_list.index = PRESET_ORDER.index(self.current_key)
+        except ValueError:
+            preset_list.index = 0
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "preset-list" and event.item.id:
+            self.dismiss(event.item.id)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-sampling":
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)

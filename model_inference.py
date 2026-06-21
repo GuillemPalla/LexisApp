@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from safetensors.torch import load_file
 import torch
 from torch.nn import functional as F
@@ -7,10 +8,60 @@ from src.models.registry import CONFIG_REGISTRY, MODEL_REGISTRY
 from src.tokenizer.registry import TOKENIZER_REGISTRY
 
 
-MAX_LENGTH = 100
-TEMPERATURE = 0.7
-TOP_K = 40
-TOP_P = 0.9
+MAX_LENGTH = 1000
+
+@dataclass(frozen=True)
+class SamplingPreset:
+    label: str
+    description: str
+    temperature: float
+    top_k: int
+    top_p: float
+
+    def params_summary(self) -> str:
+        return f"temp {self.temperature:g} · top-k {self.top_k} · top-p {self.top_p:g}"
+
+
+SAMPLING_PRESETS: dict[str, SamplingPreset] = {
+    "deterministic": SamplingPreset(
+        "Deterministic",
+        "Always picks the most likely next token — same prompt, same output every time.",
+        0.0,
+        1,
+        1.0,
+    ),
+    "instruction-following": SamplingPreset(
+        "Instruction-following",
+        "Low randomness for steady, predictable continuations that stay close to your prompt.",
+        0.3,
+        20,
+        0.85,
+    ),
+    "standard": SamplingPreset(
+        "Standard",
+        "Balanced creativity and coherence — a good default for general text completion.",
+        0.7,
+        40,
+        0.9,
+    ),
+    "creative": SamplingPreset(
+        "Creative",
+        "More varied word choices and less predictable continuations.",
+        1.0,
+        60,
+        0.95,
+    ),
+    "experimental": SamplingPreset(
+        "Experimental",
+        "Maximum randomness — output may diverge sharply from the prompt.",
+        1.5,
+        100,
+        0.99,
+    ),
+}
+
+PRESET_ORDER = list(SAMPLING_PRESETS.keys())
+DEFAULT_PRESET_KEY = "standard"
 
 class InferenceEngine:
     def __init__(self, model_path: str, tokenizer_name: str):
@@ -43,6 +94,16 @@ class InferenceEngine:
         self.model.eval()
 
         self.tokenizer = TOKENIZER_REGISTRY[tokenizer_name]()
+        self._sampling_key = DEFAULT_PRESET_KEY
+
+    @property
+    def sampling_preset_key(self) -> str:
+        return self._sampling_key
+
+    def set_sampling_preset(self, key: str) -> None:
+        if key not in SAMPLING_PRESETS:
+            raise ValueError(f"Unknown sampling preset: {key!r}")
+        self._sampling_key = key
 
     @torch.no_grad()
     def generate(self, prompt: str = None):
@@ -59,16 +120,20 @@ class InferenceEngine:
             
             logits = logits[:, -1, :] # Last position token
             
-            if TEMPERATURE == 0:
+            temperature = SAMPLING_PRESETS[self._sampling_key].temperature
+            top_k = SAMPLING_PRESETS[self._sampling_key].top_k
+            top_p = SAMPLING_PRESETS[self._sampling_key].top_p
+
+            if temperature == 0:
                 next_token = torch.argmax(logits, dim=-1, keepdim=True)
             else:
-                logits = logits / TEMPERATURE
+                logits = logits / temperature
                 probs = F.softmax(logits, dim=-1)
-                topk_probs, topk_indices = torch.topk(probs, k=TOP_K, dim=-1)
+                topk_probs, topk_indices = torch.topk(probs, k=top_k, dim=-1)
                 
-                if TOP_P < 1.0:
+                if top_p < 1.0:
                     cumulative_probs = torch.cumsum(topk_probs, dim=-1)
-                    sorted_indices_to_remove = cumulative_probs - topk_probs > TOP_P
+                    sorted_indices_to_remove = cumulative_probs - topk_probs > top_p
                     topk_probs = topk_probs.masked_fill(sorted_indices_to_remove, 0.0)
                     topk_probs = topk_probs / topk_probs.sum(dim=-1, keepdim=True)
                 

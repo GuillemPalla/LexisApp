@@ -15,6 +15,7 @@ class LexisApp(App):
         self.engine = None
     
     def on_mount(self) -> None:
+        self.theme = "gruvbox"
         self.push_screen("management")
 
 
