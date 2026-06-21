@@ -101,6 +101,21 @@ def return_model_tokenizer(model_name: str) -> str:
 
 _size_cache: dict[str, float] = {}
 
+
+def get_cached_model_size_mb(model_name: str) -> float | None:
+    """Return a cached repo size in MB, or None if not fetched yet."""
+    return _size_cache.get(model_name)
+
+
+def prefetch_model_sizes(model_names: list[str] | None = None) -> None:
+    """Warm the size cache for all models (intended for a background thread)."""
+    for name in model_names or AVAILABLE_MODELS:
+        try:
+            get_model_size_mb(name)
+        except Exception:
+            pass
+
+
 def get_model_size_mb(model_name: str) -> float:
     """Fetches the actual repo size from Hugging Face Hub in MB."""
     if model_name in _size_cache:

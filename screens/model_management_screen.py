@@ -21,6 +21,7 @@ from model_manager import (
     download_model,
     get_model_size_mb,
     is_model_downloaded,
+    prefetch_model_sizes,
     return_model_path,
     return_model_tokenizer,
 )
@@ -58,6 +59,20 @@ class ModelManagementScreen(Screen):
             yield ModelListPane()
             yield ModelDetailPane()
         yield Footer()
+
+    def on_mount(self) -> None:
+        self._prefetch_model_sizes()
+
+    @work(thread=True, group="model_size", exclusive=False)
+    def _prefetch_model_sizes(self) -> None:
+        prefetch_model_sizes()
+        if self.selected_model_id:
+            detail = self.query_one(ModelDetailPane)
+            self.app.call_from_thread(
+                detail.show_model,
+                self.selected_model_id,
+                force=True,
+            )
 
     # ── Event handlers ────────────────────────────────────────────────────────
 
@@ -100,7 +115,7 @@ class ModelManagementScreen(Screen):
 
     def _refresh_detail(self) -> None:
         if self.selected_model_id:
-            self.query_one(ModelDetailPane).show_model(self.selected_model_id)
+            self.query_one(ModelDetailPane).show_model(self.selected_model_id, force=True)
 
     # ── Async workflows ───────────────────────────────────────────────────────
 

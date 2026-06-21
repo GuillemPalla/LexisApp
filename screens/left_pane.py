@@ -12,6 +12,8 @@ from textual.widgets import Button, Label, ListItem, ListView, Static
 
 from models_data import AVAILABLE_MODELS, DATASET_CATEGORIES
 
+PANE_TITLE = "[bold $accent]Ｌ　Ｅ　Ｘ　Ｉ　Ｓ[/]"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Left pane
@@ -36,36 +38,38 @@ class ModelListPane(Vertical):
         background: $background;
     }
 
-    /* ── Main List Header ───────────────────────────────────────────────── */
-    #list-header {
-        dock: top;
-        padding: 0 2;
+    /* ── Pane header ────────────────────────────────────────────────────── */
+    #pane-logo {
+        width: 100%;
+        height: auto;
+        min-height: 1;
+        padding: 1 1;
         background: $surface-darken-1;
         color: $accent;
         text-style: bold;
-        height: 1;
-        content-align: left middle;
+        text-align: center;
+        content-align: center middle;
         border-bottom: hkey $primary;
     }
 
     #model-scroll {
         height: 1fr;
         overflow-y: auto;
-        scrollbar-gutter: stable;
         hatch: right $primary 12%;
+        padding-top: 1;
     }
 
     .model-list-content {
         width: 100%;
         height: auto;
-        padding: 1 0 2 0;
+        padding: 0;
     }
 
     /* ── Category section ───────────────────────────────────────────────── */
     .category-section {
         width: 100%;
         height: auto;
-        margin-top: 2;
+        margin-top: 1;
     }
 
     .category-section:first-child {
@@ -108,17 +112,17 @@ class ModelListPane(Vertical):
     }
 
     .category-short-description {
-        padding: 0 2 0 6;
+        padding: 0 1 0 4;
         color: $text-secondary;
         text-style: dim italic;
-        height: auto;
+        height: 1;
     }
 
     /* ── Model list items ────────────────────────────────────────────────── */
     .category-list {
         height: auto;
-        margin: 0 0 0 2;
-        padding-left: 1;
+        margin: 0 0 0 1;
+        padding: 1 0 0 1;
         border-left: vkey $primary-darken-2;
         background: transparent;
     }
@@ -131,12 +135,15 @@ class ModelListPane(Vertical):
         background: transparent;
         padding: 0;
         height: auto;
+        margin: 0;
     }
 
     .model-item {
-        padding: 0 2;
-        height: 1;
+        width: 100%;
+        padding: 0 1;
+        height: 2;
         color: $text-muted;
+        content-align: left middle;
     }
 
     ListItem:hover .model-item {
@@ -144,34 +151,52 @@ class ModelListPane(Vertical):
         background: $foreground 4%;
     }
 
-    ListItem.-active {
+    ListItem.is-selected .model-item {
+        color: $text;
+        text-style: bold;
         background: $surface-darken-1;
     }
 
-    ListItem.-active .model-item {
-        color: $text;
-    }
-
-    ListView:focus > ListItem.-active {
-        background: $panel;
-    }
-
-    ListView:focus > ListItem.-active .model-item {
+    ListView:focus ListItem.is-selected .model-item {
         color: $accent;
-        text-style: bold;
+        background: $panel;
     }
     """
 
     def __init__(self) -> None:
         super().__init__()
+        self._selected_model_id: str | None = None
+        self._items_by_id: dict[str, ListItem] = {}
         self._grouped: dict[str, list[str]] = defaultdict(list)
         for model_id, info in AVAILABLE_MODELS.items():
             self._grouped[info.get("category", "__uncategorised__")].append(model_id)
 
+    # ── Selection ────────────────────────────────────────────────────────────
+
+    def _apply_selection(self, model_id: str | None) -> None:
+        """Highlight exactly one model row across all category lists."""
+        prev = self._selected_model_id
+        if prev == model_id:
+            return
+        if prev and prev in self._items_by_id:
+            self._items_by_id[prev].remove_class("is-selected")
+        self._selected_model_id = model_id
+        if model_id and model_id in self._items_by_id:
+            self._items_by_id[model_id].add_class("is-selected")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Keep a single global selection — clear stale highlights in other lists."""
+        for list_view in self.query(".category-list"):
+            if list_view is not event.list_view and list_view.index is not None:
+                list_view.index = None
+
+        model_id = event.item.id if event.item else None
+        self._apply_selection(model_id)
+
     # ── Composition ──────────────────────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
-        yield Label(" LEXIS MODELS", id="list-header")
+        yield Static(PANE_TITLE, id="pane-logo")
 
         with ScrollableContainer(id="model-scroll"):
             with Vertical(classes="model-list-content"):
@@ -203,11 +228,13 @@ class ModelListPane(Vertical):
                             for model_id in model_ids:
                                 info = AVAILABLE_MODELS[model_id]
                                 yield ListItem(
-                                    Label(f" {info['title']}", classes="model-item"),
+                                    Label(info["title"], classes="model-item"),
                                     id=model_id,
                                 )
 
     def on_mount(self) -> None:
-        first_list = self.query(".category-list").first(ListView)
-        if first_list:
-            first_list.index = 0
+        self._items_by_id = {
+            item.id: item for item in self.query("ListItem") if item.id
+        }
+        for list_view in self.query(".category-list"):
+            list_view.index = None
