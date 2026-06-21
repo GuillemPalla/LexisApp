@@ -1,7 +1,7 @@
 from textual.app import ComposeResult
-from textual.containers import Center, Vertical, Horizontal
+from textual.containers import Center, VerticalGroup, HorizontalGroup
 from textual.screen import Screen, ModalScreen
-from textual.widgets import Button, Label, LoadingIndicator, ProgressBar, Static
+from textual.widgets import Button, Label, ProgressBar, Static
 
 
 # ── Shared overlay / card CSS ─────────────────────────────────────────────────
@@ -37,16 +37,21 @@ OVERLAY_CSS = """
     height: auto;
 }
 
+.overlay-prompt {
+    margin-bottom: 1;
+}
+
 .overlay-text-strong {
     color: $text;
     text-style: bold;
 }
 
 #button-layout {
-    layout: horizontal;
-    align: center middle;
-    margin-top: 2;
-    padding-top: 1;
+    width: 100%;
+    height: auto;
+    align-horizontal: center;
+    margin-top: 1;
+    padding: 1 0 2 0;
     border-top: hkey $primary;
 }
 
@@ -57,26 +62,73 @@ OVERLAY_CSS = """
 """
 
 
+class Spinner(Static):
+    """Single-line animated spinner (LoadingIndicator collapses to height 0 in card layouts)."""
+
+    FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+    DEFAULT_CSS = """
+    Spinner {
+        width: 100%;
+        height: 1;
+        text-align: center;
+        color: $warning;
+        text-style: bold;
+    }
+    """
+
+    def on_mount(self) -> None:
+        self._frame = 0
+        self.update(self.FRAMES[0])
+        self.set_interval(0.08, self._advance)
+
+    def _advance(self) -> None:
+        self._frame = (self._frame + 1) % len(self.FRAMES)
+        self.update(self.FRAMES[self._frame])
+
+
 class LoadingScreen(Screen):
     """Reusable transparent modal displaying a loading animation overlay."""
 
-    DEFAULT_CSS = """
+    DEFAULT_CSS = OVERLAY_CSS + """
     LoadingScreen {
         align: center middle;
         background: rgba(0, 0, 0, 0.65);
     }
 
-    LoadingScreen LoadingIndicator {
-        padding: 3 4;
-        background: $background;
-        border: tall $primary 30%;
-        hatch: right $primary 12%;
+    #loading-card {
+        width: 50;
+    }
+
+    #loading-spinner {
+        margin-bottom: 1;
+    }
+
+    #loading-progress {
+        width: 100%;
+        padding: 0 2;
+    }
+
+    #loading-progress Bar {
+        width: 100%;
     }
     """
 
+    def __init__(self, title: str = "Initializing model…") -> None:
+        super().__init__()
+        self.title = title
+
     def compose(self) -> ComposeResult:
         with Center():
-            yield LoadingIndicator()
+            with VerticalGroup(id="loading-card", classes="overlay-card"):
+                yield Static(self.title, id="loading-title", classes="overlay-title")
+                yield Spinner(id="loading-spinner")
+                yield ProgressBar(
+                    total=None,
+                    show_eta=False,
+                    show_percentage=False,
+                    id="loading-progress",
+                )
 
 
 class ConfirmDownloadScreen(ModalScreen[bool]):
@@ -94,21 +146,22 @@ class ConfirmDownloadScreen(ModalScreen[bool]):
         self.size_mb = size_mb
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="warning-card", classes="overlay-card"):
-            yield Label("Download confirmation", classes="overlay-title")
-            yield Label(
-                f"You are about to download [bold]{self.size_mb} MB[/bold].",
-                classes="overlay-text",
-            )
-            yield Label(
-                "This download [red]cannot be cancelled[/red] once started.",
-                classes="overlay-text",
-            )
-            yield Label("Do you want to proceed?", classes="overlay-text")
+        with Center():
+            with VerticalGroup(id="warning-card", classes="overlay-card"):
+                yield Label("Download confirmation", classes="overlay-title")
+                yield Label(
+                    f"You are about to download [bold]{self.size_mb} MB[/bold].",
+                    classes="overlay-text",
+                )
+                yield Label(
+                    "This download [red]cannot be cancelled[/red] once started.",
+                    classes="overlay-text",
+                )
+                yield Label("Do you want to proceed?", classes="overlay-text overlay-prompt")
 
-            with Horizontal(id="button-layout"):
-                yield Button("Proceed", id="proceed-btn", variant="error")
-                yield Button("Cancel", id="cancel-btn", variant="primary")
+                with HorizontalGroup(id="button-layout"):
+                    yield Button("Proceed", id="proceed-btn", variant="error")
+                    yield Button("Cancel", id="cancel-btn", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "proceed-btn":
@@ -130,21 +183,22 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
         self.size_mb = size_mb
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="warning-card", classes="overlay-card"):
-            yield Label("Delete confirmation", classes="overlay-title")
-            yield Label(
-                f"You are about to delete [bold]{self.size_mb}[/bold].",
-                classes="overlay-text",
-            )
-            yield Label(
-                "This action [red]cannot be undone[/red].",
-                classes="overlay-text",
-            )
-            yield Label("Do you want to proceed?", classes="overlay-text")
+        with Center():
+            with VerticalGroup(id="warning-card", classes="overlay-card"):
+                yield Label("Delete confirmation", classes="overlay-title")
+                yield Label(
+                    f"You are about to delete [bold]{self.size_mb}[/bold].",
+                    classes="overlay-text",
+                )
+                yield Label(
+                    "This action [red]cannot be undone[/red].",
+                    classes="overlay-text",
+                )
+                yield Label("Do you want to proceed?", classes="overlay-text overlay-prompt")
 
-            with Horizontal(id="button-layout"):
-                yield Button("Proceed", id="proceed-btn", variant="error")
-                yield Button("Cancel", id="cancel-btn", variant="primary")
+                with HorizontalGroup(id="button-layout"):
+                    yield Button("Proceed", id="proceed-btn", variant="error")
+                    yield Button("Cancel", id="cancel-btn", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "proceed-btn":
@@ -198,7 +252,7 @@ class DownloadScreen(Screen):
 
     def compose(self) -> ComposeResult:
         with Center():
-            with Vertical(id="download-card", classes="overlay-card"):
+            with VerticalGroup(id="download-card", classes="overlay-card"):
                 yield Static("Downloading model…", id="dl-title", classes="overlay-title")
                 yield Static("", id="dl-filename")
                 yield ProgressBar(total=100, show_eta=False, id="dl-progress")

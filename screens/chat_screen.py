@@ -21,7 +21,7 @@ class ChatScreen(Screen):
         width: 100%;
         height: 1fr;
         layout: vertical;
-        padding: 3 4;
+        padding: 1 2;
         background: $background;
         hatch: right $primary 12%;
     }
@@ -62,8 +62,8 @@ class ChatScreen(Screen):
 
     #actions-row {
         height: auto;
-        padding: 2 3;
-        margin-top: 2;
+        padding: 1 2;
+        margin-top: 1;
         align: left middle;
         background: $surface-darken-1;
         border-top: hkey $primary;

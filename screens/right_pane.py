@@ -279,7 +279,7 @@ class ModelDetailPane(Vertical):
     /* ── Action bar ─────────────────────────────────────────────────────── */
     #action-bar {
         height: auto;
-        padding: 2 3;
+        padding: 1 2;
         align: right middle;
         background: $surface-darken-1;
         border-top: hkey $primary;
