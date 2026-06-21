@@ -5,7 +5,7 @@ Reusable modal dialogs for the model-management screen.
 """
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label, Static
 
@@ -107,3 +107,122 @@ class ArchFeatureModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-arch-modal":
             self.app.pop_screen()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Chat screen — important information
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CHAT_INFO_SECTIONS = (
+    (
+        "These are not chatbot assistants",
+        (
+            "If you are used to ChatGPT, Claude, or similar AI assistants, please adjust "
+            "your expectations. These models have [bold]not[/bold] been fine-tuned to act "
+            "as helpful assistants — they were trained only on large volumes of text.\n\n"
+            "They behave as [bold]text completers[/bold]: they take whatever you write and "
+            "continue generating more text in the same direction. They do not follow "
+            "instructions, hold a conversation, or \"understand\" what you want unless "
+            "your prompt naturally leads them that way."
+        ),
+    ),
+    (
+        "Extremely small, experimental models",
+        (
+            "The models here range from about [bold]1 million to 110 million parameters[/bold] "
+            "— a tiny fraction of mainstream LLMs (which often have [bold]tens or hundreds of "
+            "billions[/bold] of parameters, i.e. hundreds to thousands of times larger).\n\n"
+            "Because of their size, output can be [bold]erratic, random, or nonsensical[/bold]. "
+            "Facts may be completely wrong. Responses are generated statistically, not "
+            "deliberately — they are [bold]not intended[/bold] to offend, accuse, or represent "
+            "anyone or anything.\n\n"
+            "Use this tool for experimentation only. Do not rely on these outputs for "
+            "decisions, facts, or anything consequential."
+        ),
+    ),
+)
+
+
+class ChatInfoModal(ModalScreen):
+    """Modal: warnings about how chat-screen models behave and their limitations."""
+
+    BINDINGS = [("escape", "dismiss", "Close")]
+
+    CSS = MODAL_CSS + """
+    ChatInfoModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.65);
+    }
+
+    ChatInfoModal .modal-dialog {
+        width: 95%;
+        max-width: 140;
+        height: 75%;
+        max-height: 75%;
+        padding: 2 3;
+    }
+
+    .chat-info-title {
+        text-style: bold underline;
+        height: auto;
+        margin-bottom: 1;
+        padding: 0 1;
+        color: $text-warning;
+        text-align: center;
+        width: 100%;
+    }
+
+    .chat-info-columns {
+        width: 100%;
+        height: 1fr;
+        overflow-y: auto;
+        layout: horizontal;
+    }
+
+    .info-panel {
+        width: 1fr;
+        height: auto;
+        padding: 1 2;
+        margin: 0 1;
+        background: $surface-darken-1;
+        border: tall $primary 25%;
+    }
+
+    .info-panel-title {
+        text-style: bold;
+        margin: 0 0 1 0;
+        padding: 0 1;
+        color: $text;
+        text-align: center;
+        width: 100%;
+    }
+
+    .info-panel-body {
+        padding: 0 1;
+        color: $text-secondary;
+        height: auto;
+    }
+
+    .chat-info-close {
+        width: 100%;
+        height: auto;
+        margin-top: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Label("⚠  Important Information", classes="chat-info-title")
+            with Horizontal(classes="chat-info-columns"):
+                for title, body in _CHAT_INFO_SECTIONS:
+                    with Vertical(classes="info-panel"):
+                        yield Label(title, classes="info-panel-title")
+                        yield Static(body, classes="info-panel-body")
+            yield Button("Close", variant="primary", id="close-chat-info", classes="chat-info-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "close-chat-info":
+            self.dismiss()
+
+    def action_dismiss(self) -> None:
+        self.dismiss()

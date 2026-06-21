@@ -8,6 +8,8 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Header, Footer, Button, RichLog, TextArea, Label
 
+from screens.modals import ChatInfoModal
+
 
 class ChatScreen(Screen):
     """Text completion screen — the model continues from whatever the user writes."""
@@ -73,6 +75,16 @@ class ChatScreen(Screen):
         margin-right: 2;
         min-width: 16;
     }
+
+    #chat-top-bar {
+        height: auto;
+        align: right middle;
+        padding: 0 2 1 0;
+    }
+
+    #info-btn {
+        min-width: 24;
+    }
     """
 
     def __init__(self, *args, **kwargs):
@@ -81,10 +93,13 @@ class ChatScreen(Screen):
         self._history: list[dict] = []
         self._streaming: bool = False
         self._cancel_event: threading.Event = threading.Event()
+        self._info_shown_this_visit: bool = False
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="main-chat"):
+            with Horizontal(id="chat-top-bar"):
+                yield Button("⚠ Important Information", id="info-btn", variant="warning")
             yield RichLog(id="completions-log", highlight=False, markup=True, wrap=True)
             yield Label("Write your text and the model will continue it:", id="prompt-label")
             yield TextArea(id="prompt-input")
@@ -96,9 +111,13 @@ class ChatScreen(Screen):
     def on_mount(self) -> None:
         self.query_one("#prompt-input").focus()
 
-    def on_screen_suspend(self) -> None:
-        """Called whenever the screen is navigated away from — cancel and reset."""
-        self._reset()
+    def on_screen_resume(self) -> None:
+        if not self._info_shown_this_visit:
+            self._info_shown_this_visit = True
+            self.call_after_refresh(self._show_info_modal)
+
+    def _show_info_modal(self) -> None:
+        self.app.push_screen(ChatInfoModal())
 
     def _reset(self) -> None:
         """Cancel any active generation and clear all state and UI."""
@@ -148,7 +167,11 @@ class ChatScreen(Screen):
             else:
                 self._submit_prompt()
         elif event.button.id == "back-btn":
+            self._info_shown_this_visit = False
+            self._reset()
             self.app.switch_screen("management")
+        elif event.button.id == "info-btn":
+            self._show_info_modal()
 
     def _cancel_generation(self) -> None:
         """Signal the streaming worker to stop."""
