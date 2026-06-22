@@ -1,3 +1,6 @@
+import os
+import sys
+
 from textual.app import App
 
 from screens.chat_screen import ChatScreen
@@ -21,5 +24,8 @@ class LexisApp(App):
 
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        os.system("chcp 65001 > nul")
+
     app = LexisApp()
     app.run()

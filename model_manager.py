@@ -1,4 +1,5 @@
 import shutil
+import fnmatch
 from pathlib import Path
 from platformdirs import user_data_dir
 from huggingface_hub import list_repo_files, hf_hub_download, repo_info
@@ -11,16 +12,18 @@ DATA_DIR = Path(user_data_dir(APP_NAME))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 IGNORE_PATTERNS = {"*.md", ".gitattributes", "README.md"}
+MARKER_FILE = ".download_complete"
+
 
 def _make_tqdm_class(progress_callback, filename: str) -> type:
     """
-    Returns a tqdm subclass that calls progress_callback on every update
-    so the UI can refresh.
+    Returns a tqdm subclass that calls progress_callback on every update.
     """
     class UIPostTqdm(tqdm):
         def update(self, n=1):
             displayed = super().update(n)
             if progress_callback:
+                # Ensure values don't break if total is missing
                 progress_callback(self.n, self.total or 0, filename)
             return displayed
 
@@ -28,7 +31,6 @@ def _make_tqdm_class(progress_callback, filename: str) -> type:
 
 
 def _should_ignore(filename: str) -> bool:
-    import fnmatch
     return any(fnmatch.fnmatch(filename, pat) for pat in IGNORE_PATTERNS)
 
 
@@ -39,14 +41,15 @@ def get_local_model_dir(model_name: str) -> Path:
 
 
 def is_model_downloaded(model_name: str) -> bool:
-    """Checks if both the weights and config exist locally."""
+    """Checks if the local model folder contains our success marker."""
     model_dir = get_local_model_dir(model_name)
-    return (model_dir / "model.safetensors").exists() and (model_dir / "config.json").exists()
+    return (model_dir / MARKER_FILE).exists()
 
 
 def download_model(model_name: str, progress_callback=None) -> Path:
     """
     Downloads all required files for a given model from Hugging Face Hub.
+    Supports native chunk resumption on network failure.
     """
     if progress_callback is None:
         progress_callback = lambda *_: None
@@ -56,68 +59,67 @@ def download_model(model_name: str, progress_callback=None) -> Path:
     target_dir = get_local_model_dir(model_name)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        all_files = [
-            f for f in list_repo_files(repo_id)
-            if not _should_ignore(f)
-        ]
+    # Remove completion marker if a re-download/repair is explicitly triggered
+    marker = target_dir / MARKER_FILE
+    if marker.exists():
+        marker.unlink()
 
-        for filename in all_files:
-            tqdm_cls = _make_tqdm_class(progress_callback, filename)
+    all_files = [
+        f for f in list_repo_files(repo_id)
+        if not _should_ignore(f)
+    ]
 
-            hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                local_dir=target_dir,
-                tqdm_class=tqdm_cls,
-            )
+    for filename in all_files:
+        tqdm_cls = _make_tqdm_class(progress_callback, filename)
 
-    except Exception as e:
-        # clean up if it fails due to network or unexpected error
-        if target_dir.exists():
-            shutil.rmtree(target_dir, ignore_errors=True)
-        raise e
+        # local_dir_use_symlinks="auto" ensures files are written directly 
+        # as actual binaries into your AppData folder, crucial for PyInstaller portability.
+        hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            local_dir=target_dir,
+            local_dir_use_symlinks="auto",
+            tqdm_class=tqdm_cls,
+        )
 
+    # Place the success marker only when ALL files complete flawlessly
+    marker.touch()
     return target_dir
 
 
 def delete_model(model_name: str) -> None:
-    """Deletes the local model directory from disk."""
+    """Deletes the local model directory from disk completely."""
     model_dir = get_local_model_dir(model_name)
     if model_dir.exists():
-        shutil.rmtree(model_dir)
+        shutil.rmtree(model_dir, ignore_errors=True)
 
 
 def return_model_path(model_name: str) -> Path:
     """Returns the path to the model directory."""
     if not is_model_downloaded(model_name):
-        raise FileNotFoundError("Model not downloaded yet.")
+        raise FileNotFoundError(f"Model '{model_name}' is not fully downloaded yet.")
     return get_local_model_dir(model_name)
 
-def return_model_tokenizer(model_name: str) -> str:
-    """Returns the tokenizer instance for the model."""
-    model_info = AVAILABLE_MODELS[model_name]
-    return model_info["tokenizer"]
 
+def return_model_tokenizer(model_name: str) -> str:
+    """Returns the tokenizer identifier for the model."""
+    return AVAILABLE_MODELS[model_name]["tokenizer"]
+
+
+# Size cache mechanisms remain identical and look good!
 _size_cache: dict[str, float] = {}
 
-
 def get_cached_model_size_mb(model_name: str) -> float | None:
-    """Return a cached repo size in MB, or None if not fetched yet."""
     return _size_cache.get(model_name)
 
-
 def prefetch_model_sizes(model_names: list[str] | None = None) -> None:
-    """Warm the size cache for all models (intended for a background thread)."""
     for name in model_names or AVAILABLE_MODELS:
         try:
             get_model_size_mb(name)
         except Exception:
-            pass
-
+            pass  # Suppress background network noise safely
 
 def get_model_size_mb(model_name: str) -> float:
-    """Fetches the actual repo size from Hugging Face Hub in MB."""
     if model_name in _size_cache:
         return _size_cache[model_name]
     

@@ -1,11 +1,10 @@
 import json
 from dataclasses import dataclass
-from safetensors.torch import load_file
-import torch
-from torch.nn import functional as F
+from pathlib import Path
+import numpy as np
+import onnxruntime as ort
 
-from src.models.registry import CONFIG_REGISTRY, MODEL_REGISTRY
-from src.tokenizer.registry import TOKENIZER_REGISTRY
+from tokenizer.registry import TOKENIZER_REGISTRY
 
 
 MAX_LENGTH = 1000
@@ -65,37 +64,43 @@ DEFAULT_PRESET_KEY = "standard"
 
 class InferenceEngine:
     def __init__(self, model_path: str, tokenizer_name: str):
-        config_path = model_path / "config.json"
+        model_dir = Path(model_path)
+        
+        # Read block size out of config file
+        config_path = model_dir / "config.json"
         with open(config_path, "r") as f:
             model_config = json.load(f)
+        self.block_size = model_config.get("block_size", 1024)
         
-        model_type = model_config["model_type"]
-
-        config_dataclass = CONFIG_REGISTRY[model_type]
-        config_object = config_dataclass(**model_config)
-
-        self.model = MODEL_REGISTRY[model_type](config_object)
-    
-        weights_path = model_path / "model.safetensors"
-        state_dict = load_file(str(weights_path))
+        onnx_file_path = model_dir / "model.onnx"
+        print(f"Initializing DirectML ONNX Session for {onnx_file_path}...")
         
-        # Logic to handle the case where the model was saved with tied weights
-        if "transformer.wte.weight" not in state_dict and "lm_head.weight" in state_dict:
-            # Safely tie them back together in the state dict
-            state_dict["transformer.wte.weight"] = state_dict["lm_head.weight"]
-        elif "lm_head.weight" not in state_dict and "transformer.wte.weight" in state_dict:
-            state_dict["lm_head.weight"] = state_dict["transformer.wte.weight"]
-
-        # Inject the loaded weights into architecture
-        # strict=True ensures your architecture matches the weights exactly
-        self.model.load_state_dict(state_dict, strict=True)
+        # Create an object to customize how the ONNX engine executes our model graph
+        options = ort.SessionOptions()
         
-        # Set the model to evaluation mode (turns off dropout, batchnorm, etc.)
-        self.model.eval()
-
+        # CRITICAL FOR DIRECTML: Disable ONNX's native CPU-optimized memory manager. 
+        # This prevents ONNX Runtime from fighting with your Windows GPU drivers (DirectX 12) over VRAM control.
+        options.enable_mem_pattern = False
+        
+        # Forces operators/layers to execute one after the other. This prevents multi-threading 
+        # race conditions across unpredictable client graphics cards (NVIDIA, AMD, Intel).
+        options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        
+        # Define execution priority: try DirectML (Windows GPU) first; if it's missing, safely drop back to the CPU.
+        providers = ['DmlExecutionProvider', 'CPUExecutionProvider']
+        
+        # Instantiate the actual binary runner session, passing the model path, our configuration options, and hardware drivers.
+        self.ort_session = ort.InferenceSession(str(onnx_file_path), sess_options=options, providers=providers)
+        
+        # Look inside the compiled ONNX graph and automatically find the name of its first input node (e.g., "input_ids").
+        # This saves us from having to hardcode what the PyTorch exporter named it.
+        self.input_name = self.ort_session.get_inputs()[0].name
+        
+        # Load tokenizer
         self.tokenizer = TOKENIZER_REGISTRY[tokenizer_name]()
+        
         self._sampling_key = DEFAULT_PRESET_KEY
-
+        
     @property
     def sampling_preset_key(self) -> str:
         return self._sampling_key
@@ -105,46 +110,95 @@ class InferenceEngine:
             raise ValueError(f"Unknown sampling preset: {key!r}")
         self._sampling_key = key
 
-    @torch.no_grad()
     def generate(self, prompt: str = None):
+        # Convert raw text string into a 1D sequence of numerical token IDs
         tokens = self.tokenizer.encode(prompt)
-        prompt_len = len(tokens)
         
-        xgen = torch.tensor(tokens, dtype=torch.long).unsqueeze(0) # Batch size = 1
+        # Keep sequence tracking inside a light Python native list.
+        # Python lists are heavily optimized for single-item appends (O(1)), making them 
+        # much lighter and faster for text loops than repeatedly resizing a PyTorch or NumPy tensor.
+        xgen = list(tokens)
         
-        while xgen.size(1) < MAX_LENGTH:
-            xgen_crop = xgen[:, -self.model.config.block_size:]
+        while len(xgen) < MAX_LENGTH:
+            # Enforce the context window limit. If our text sequence gets too long, 
+            # slice off the oldest tokens so we don't violate the model's structural block size limit.
+            xgen_crop = xgen[-self.block_size:]
 
-            with torch.autocast(device_type=xgen.device.type, dtype=torch.bfloat16):
-                logits = self.model(xgen_crop)
+            # Wrap our 1D list into a structured 2D NumPy Array.
+            # ONNX strictly expects dimensions matching: (batch_size, sequence_length).
+            # Writing [xgen_crop] adds that necessary outer batch dimension of 1.
+            input_numpy = np.array([xgen_crop], dtype=np.int64)
             
-            logits = logits[:, -1, :] # Last position token
+            # Run the data forward through the ONNX graph on the system GPU via DirectML.
+            # It returns a list containing all outputs. We grab the first element ([0]), which holds the logits.
+            ort_outputs = self.ort_session.run(None, {self.input_name: input_numpy})
+            logits_raw = ort_outputs[0]  # Shape: (batch_size=1, sequence_length, vocabulary_size)
             
+            # Isolate token predictions for the final sequence character index.
+            # We index 0 (the only batch) and -1 (the absolute last generated token) to isolate a 1D array of vocabulary scores.
+            logits = logits_raw[0, -1, :]
+            
+            # Fetch user configuration values based on the current active preset
             temperature = SAMPLING_PRESETS[self._sampling_key].temperature
             top_k = SAMPLING_PRESETS[self._sampling_key].top_k
             top_p = SAMPLING_PRESETS[self._sampling_key].top_p
 
+            # Greedy Search: No randomness. Find the index with the absolute highest raw score.
             if temperature == 0:
-                next_token = torch.argmax(logits, dim=-1, keepdim=True)
+                next_token = int(np.argmax(logits))
             else:
+                # Scale raw model confidence scores by temperature before calculating probabilities.
                 logits = logits / temperature
-                probs = F.softmax(logits, dim=-1)
-                topk_probs, topk_indices = torch.topk(probs, k=top_k, dim=-1)
                 
+                # Sort vocabulary array indices from highest score to lowest score.
+                # np.argsort sorts ascending; adding [::-1] flips it to descending order.
+                sorted_indices = np.argsort(logits)[::-1]
+                sorted_logits = logits[sorted_indices]
+                
+                # --- TOP-K FILTERING STEP ---
+                # Truncate our sorted search space. Discard all words outside the top 'K' slots.
+                if top_k > 0 and top_k < len(sorted_logits):
+                    sorted_logits = sorted_logits[:top_k]
+                    sorted_indices = sorted_indices[:top_k]
+                
+                # --- MANUAL SOFTMAX CALCULATION ---
+                # Convert raw arbitrary logits into strict 0.0 to 1.0 percentage probabilities.
+                # Subtracting 'np.max(sorted_logits)' is a standard safety trick that prevents exponential overflow crashes.
+                probs = np.exp(sorted_logits - np.max(sorted_logits))
+                probs /= np.sum(probs)  # Ensure everything sums up cleanly to exactly 1.0
+                
+                # --- TOP-P (NUCLEUS) FILTERING STEP ---
+                # Keep accumulating sorted word choices until their combined probability hits our threshold (e.g., 90%).
                 if top_p < 1.0:
-                    cumulative_probs = torch.cumsum(topk_probs, dim=-1)
-                    sorted_indices_to_remove = cumulative_probs - topk_probs > top_p
-                    topk_probs = topk_probs.masked_fill(sorted_indices_to_remove, 0.0)
-                    topk_probs = topk_probs / topk_probs.sum(dim=-1, keepdim=True)
+                    cumulative_probs = np.cumsum(probs) # Create running total sum array
+                    
+                    # Find indices where the cumulative total hasn't crossed the boundary yet
+                    keep_idx = np.where(cumulative_probs <= top_p)[0]
+                    
+                    if len(keep_idx) == 0:
+                        # If the very first word was already higher than top_p, preserve at least that single choice
+                        keep_idx = [0]
+                    else:
+                        # Include the very first token that crossed the line so our choice pool isn't empty or truncated too early
+                        last_idx = keep_idx[-1]
+                        if last_idx + 1 < len(probs):
+                            keep_idx = np.append(keep_idx, last_idx + 1)
+                    
+                    # Cut down our options and re-normalize probabilities so they sum to 1.0 again
+                    probs = probs[keep_idx]
+                    probs /= np.sum(probs)  
+                    sorted_indices = sorted_indices[keep_idx]
                 
-                ix = torch.multinomial(topk_probs, num_samples=1)
-                next_token = torch.gather(topk_indices, dim=-1, index=ix)
+                # --- STOCHASTIC SAMPLING PASS ---
+                # Roll a random number matching our finalized probability weights to select the next word ID.
+                next_token = int(np.random.choice(sorted_indices, p=probs))
             
-            # Check if EOT token is reached
-            if next_token.item() == self.tokenizer.eot_token:
+            # If the model emits its special End-Of-Text token, break out of the loop and stop generating text.
+            if next_token == self.tokenizer.eot_token:
                 break
 
-            xgen = torch.cat((xgen, next_token), dim=1)
-
-            # Yield the decoded token to the caller for streaming output
-            yield self.tokenizer.decode([next_token.item()])
+            # Append the newly verified token directly to our historical tracker list
+            xgen.append(next_token)
+            
+            # Yield the single string word to the calling application layout in real-time (streaming text)
+            yield self.tokenizer.decode([next_token])

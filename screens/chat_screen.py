@@ -128,15 +128,14 @@ class ChatScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        if self.app.engine:
-            self._sampling_key = self.app.engine.sampling_preset_key
-        self._update_sampling_button()
+        self._reset_sampling_to_default()
         self._update_model_title()
         self.query_one("#prompt-input").focus()
 
     def on_screen_resume(self) -> None:
         self._update_model_title()
         if not self._info_shown_this_visit:
+            self._reset_sampling_to_default()
             self._info_shown_this_visit = True
             self.call_after_refresh(self._show_info_modal)
 
@@ -156,6 +155,12 @@ class ChatScreen(Screen):
         btn = self.query_one("#sampling-btn", Button)
         btn.label = label
         btn.styles.min_width = max(len(label) + 2, _SAMPLING_BTN_MIN_WIDTH)
+    
+    def _reset_sampling_to_default(self) -> None:
+        self._sampling_key = DEFAULT_PRESET_KEY
+        if self.app.engine:
+            self.app.engine.set_sampling_preset(DEFAULT_PRESET_KEY)
+        self._update_sampling_button()
 
     def _apply_sampling_preset(self, key: str) -> None:
         self._sampling_key = key

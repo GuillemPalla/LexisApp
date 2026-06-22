@@ -1,4 +1,4 @@
-from src.tokenizer.tokenizers import OnlySportsTokenizer, PythonTokenizer, TinyStoriesTokenizer
+from tokenizer.tokenizers import OnlySportsTokenizer, PythonTokenizer, TinyStoriesTokenizer
 
 
 TOKENIZER_REGISTRY = {
