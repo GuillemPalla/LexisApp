@@ -1,8 +1,16 @@
 # LexisApp
 
-.\clear_env\Scripts\Activate.ps1
+.\clean_env\Scripts\Activate.ps1
+pip freeze > requirements.txt
 
-pyinstaller --clean --console --collect-all textual --collect-all onnxruntime --add-data "tokenizer;tokenizer" app.py
+pyinstaller --clean --console --name lexis_tui --collect-all textual --collect-all onnxruntime --add-data "tokenizer;tokenizer" --hidden-import _overlapped --hidden-import asyncio --hidden-import asyncio.windows_events --hidden-import asyncio.windows_utils --hidden-import encodings --hidden-import encodings.utf_8 --hidden-import encodings.cp65001 app.py
+
+pyinstaller --clean --windowed --name Lexis --add-data "alacritty.exe;." --add-data "alacritty.toml;." launcher.py
+
+copy alacritty.exe dist\Lexis\alacritty.exe
+copy alacritty.toml dist\Lexis\alacritty.toml
+copy dist\lexis_tui\lexis_tui.exe dist\Lexis\lexis_tui.exe
+
 
 Key Flags Explained:
 --clean: Clears the PyInstaller cache before building (prevents old dependency remnants).

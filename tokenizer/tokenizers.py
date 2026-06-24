@@ -1,22 +1,10 @@
 from abc import abstractmethod
 import json
 from pathlib import Path
-import sys
 
 from tokenizers import Tokenizer
 from transformers import GPT2Tokenizer
 
-def resolve_asset_path(relative_path: str) -> Path:
-    """
-    Dynamically finds assets whether running in a live dev environment
-    or inside a frozen PyInstaller executable.
-    """
-    # PyInstaller creates a temporary folder and stores its path in sys._MEIPASS
-    if hasattr(sys, '_MEIPASS'):
-        return Path(sys._MEIPASS) / relative_path
-    
-    # Dev environment fallback (relative to your project root)
-    return Path(__file__).parent / relative_path
 
 class BaseTokenizer:
     @abstractmethod
@@ -44,7 +32,7 @@ class TinyStoriesTokenizer(BaseTokenizer):
     def __init__(self, vocab_filename="tinystories_vocab.json"):
         self._base = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-neo-125M", clean_up_tokenization_spaces=False)
 
-        vocab_path = resolve_asset_path(vocab_filename)
+        vocab_path = Path(__file__).parent / vocab_filename
 
         with open(vocab_path) as f:
             data = json.load(f)
@@ -113,7 +101,7 @@ class TinyStoriesTokenizer(BaseTokenizer):
 
 class OnlySportsTokenizer(BaseTokenizer):
     def __init__(self):
-        path = resolve_asset_path("onlysports_vocab.json")
+        path = Path(__file__).parent / "onlysports_vocab.json"
         self.enc = Tokenizer.from_file(str(path))
 
     def encode(self, text: str) -> list[int]:
@@ -137,7 +125,7 @@ class OnlySportsTokenizer(BaseTokenizer):
 
 class PythonTokenizer(BaseTokenizer):
     def __init__(self):
-        path = resolve_asset_path("python_vocab.json")
+        path = Path(__file__).parent / "python_vocab.json"
         self.enc = Tokenizer.from_file(str(path))
 
     def encode(self, text: str) -> list[int]:
