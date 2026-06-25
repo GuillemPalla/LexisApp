@@ -15,19 +15,24 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "launch.vbs"; DestDir: "{app}"; Flags: ignoreversion
-
-; Your app source code
 Source: "app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs
-
-; Embeddable Python runtime
 Source: "python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs
-
-; The launcher
 Source: "launch.bat"; DestDir: "{app}"; Flags: ignoreversion
 
-[Icons]
-Name: "{group}\LexisApp"; Filename: "{app}\launch.vbs"; \
-    WorkingDir: "{app}"; IconFilename: "{app}\app\icon.ico"
+; The wrapper exe with the icon baked in
+Source: "launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-Name: "{userdesktop}\LexisApp"; Filename: "{app}\launch.vbs"; \
-    WorkingDir: "{app}"; IconFilename: "{app}\app\icon.ico"
+[Icons]
+Name: "{group}\LexisApp"; \
+    Filename: "{app}\launcher.exe"; \
+    WorkingDir: "{app}"
+
+Name: "{userdesktop}\LexisApp"; \
+    Filename: "{app}\launcher.exe"; \
+    WorkingDir: "{app}"
+
+[UninstallRun]
+Filename: "cmd.exe"; \
+    Parameters: "/c rmdir /s /q ""{localappdata}\LexisApp"""; \
+    Flags: runhidden; \
+    RunOnceId: "DeleteUserData"
