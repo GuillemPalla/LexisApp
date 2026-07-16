@@ -1,0 +1,9 @@
+textual
+textual-serve
+pystray
+pillow
+numpy
+onnxruntime
+huggingface_hub
+tqdm
+transformers

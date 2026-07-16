@@ -1,24 +1,58 @@
 # LexisApp
 
-.\clean_env\Scripts\Activate.ps1
-pip freeze > requirements.txt
+A Textual app for downloading and running small ONNX language models
+locally, packaged as a Windows desktop app: install it, and it runs
+quietly in the system tray while serving its UI to your browser on
+`http://localhost:8000`.
 
-pyinstaller --clean --console --name lexis_tui --collect-all textual --collect-all onnxruntime --add-data "tokenizer;tokenizer" --hidden-import _overlapped --hidden-import asyncio --hidden-import asyncio.windows_events --hidden-import asyncio.windows_utils --hidden-import encodings --hidden-import encodings.utf_8 --hidden-import encodings.cp65001 app.py
+The visual components of this application (/src/screens) were generated with the assistance of AI using Cursor IDE, with minimal human intervention.
 
-pyinstaller --clean --windowed --name Lexis --add-data "alacritty.exe;." --add-data "alacritty.toml;." launcher.py
+The build pipeline (/build/windows), due to its complexity, was also developed with AI assistance, but involved significantly more human intervention, analysis, and refinement. See BUILD.md for more details.
 
-copy alacritty.exe dist\Lexis\alacritty.exe
-copy alacritty.toml dist\Lexis\alacritty.toml
-copy dist\lexis_tui\lexis_tui.exe dist\Lexis\lexis_tui.exe
+## Project layout
 
+```
+LexisApp/
+├── src/                  # the app — single source of truth, dev and prod
+│   ├── app.py             # entry point (Textual App)
+│   ├── serve.py           # desktop wrapper: tray icon + textual-serve on :8000
+│   ├── tray.py             # system tray icon (Open / Quit)
+│   ├── icon.ico
+│   ├── screens/
+│   └── tokenizers/
+├── requirements.txt
+├── build/
+    └── windows/           # Windows-installer packaging, nothing else
+       ├── setup.iss        # Inno Setup script
+       ├── launch.bat       # polls :8000, opens the browser once it's up
+       ├── launch.vbs       # runs launch.bat with a hidden window
+       ├── launcher.py      # compiled to launcher.exe (Start Menu / Desktop icon)
+       └── build.ps1        # builds the whole installer in one command
 
-Key Flags Explained:
---clean: Clears the PyInstaller cache before building (prevents old dependency remnants).
+```
 
---console: Crucial for Textual. Do not use --windowed or -w. Textual apps run inside a terminal; hiding the console will cause the app to crash instantly on launch.
+## Development
 
---collect-all onnxruntime: Forces PyInstaller to grab all binaries (DirectML.dll, onnxruntime_providers_shared.dll, etc.) and metadata for ONNX.
+```bash
+# Create venv
+python -m venv .venv
+# activate
+source .venv/bin/activate # macOS/Linux
+.venv\Scripts\activate # Windows
 
---collect-all textual: Ensures Textual's internal assets and dependencies (like rich) are bundled flawlessly.
+pip install -r requirements.txt
+cd src
+python app.py
+```
 
-Note on --onefile vs --onedir: By default, the command above creates a --onedir (a folder containing an .exe and dozens of files). While you can use --onefile to get a single executable, onnxruntime and textual will take several seconds to unpack to a temporary directory every single time the user launches the app. For a smooth user experience, --onedir combined with an installer is highly recommended.
+## Building the Windows installer
+
+See [`docs/BUILD.md`](docs/BUILD.md) for the full write-up. Short version,
+from a Windows machine with PyInstaller and Inno Setup 6 installed:
+
+```powershell
+cd build\windows
+.\build.ps1
+```
+
+This produces `build\windows\Output\LexisApp-Setup.exe`.
