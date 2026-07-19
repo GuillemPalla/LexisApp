@@ -5,6 +5,8 @@ locally, packaged as a Windows desktop app: install it, and it runs
 quietly in the system tray while serving its UI to your browser on
 `http://localhost:8000`.
 
+Developed for PFG GEINF.
+
 The visual components of this application (/src/screens) were generated with the assistance of AI using Cursor IDE, with minimal human intervention.
 
 The build pipeline (/build/windows), due to its complexity, was also developed with AI assistance, but involved significantly more human intervention, analysis, and refinement. See BUILD.md for more details.
