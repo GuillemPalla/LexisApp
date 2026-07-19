@@ -67,7 +67,7 @@ python app.py
 
 ## Building the Windows installer
 
-See [`docs/BUILD.md`](docs/BUILD.md) for the full write-up. Short version,
+See [`BUILD.md`](BUILD.md) for the full write-up. Short version,
 from a Windows machine with PyInstaller and Inno Setup 6 installed:
 
 ```powershell
