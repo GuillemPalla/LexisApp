@@ -7,6 +7,20 @@ quietly in the system tray while serving its UI to your browser on
 
 Developed for PFG GEINF.
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/model-details.png" alt="Model details — browse and run local ONNX models" width="700">
+  <br>
+  <em>Model browser: inspect memory, size, and run or delete a local model</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/visualization-hub.png" alt="Visualization Hub — story continuation with the local model" width="700">
+  <br>
+  <em>Visualization Hub: write text and continue a story with the selected model</em>
+</p>
+
 - **[MiniTransformerFromScratch](https://github.com/GuillemPalla/MiniTransformerFromScratch)** — base repo with the architectures and pipeline to train and evaluate the Lexis models this application runs.
 - **[Training artifacts](https://huggingface.co/GuillemPallares/MiniTransformerFromScratchModels)** — checkpoints and TensorBoard logs collected during training (one folder per run).
 - **[ONNX models](https://huggingface.co/GuillemPallares/models)** — all 11 models trained for this project, exported to ONNX with their config files.
