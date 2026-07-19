@@ -7,6 +7,14 @@ quietly in the system tray while serving its UI to your browser on
 
 Developed for PFG GEINF.
 
+- **[MiniTransformerFromScratch](https://github.com/GuillemPalla/MiniTransformerFromScratch)** — base repo with the architectures and pipeline to train and evaluate the Lexis models this application runs.
+- **[Training artifacts](https://huggingface.co/GuillemPallares/MiniTransformerFromScratchModels)** — checkpoints and TensorBoard logs collected during training (one folder per run).
+- **[ONNX models](https://huggingface.co/GuillemPallares/models)** — all 11 models trained for this project, exported to ONNX with their config files.
+
+## Install the app (Windows):
+
+- **[LexisApp Installer](https://drive.google.com/file/d/1RHROnlQBnKClbAnqhzBDypsNEgVjkZ2R/view?usp=sharing)**
+
 ## Screenshots
 
 **Model browser** — inspect memory, size, and run or delete a local model:
@@ -16,10 +24,6 @@ Developed for PFG GEINF.
 **Visualization Hub** — write text and continue a story with the selected model:
 
 ![Visualization Hub](screenshots/visualization-hub.png)
-
-- **[MiniTransformerFromScratch](https://github.com/GuillemPalla/MiniTransformerFromScratch)** — base repo with the architectures and pipeline to train and evaluate the Lexis models this application runs.
-- **[Training artifacts](https://huggingface.co/GuillemPallares/MiniTransformerFromScratchModels)** — checkpoints and TensorBoard logs collected during training (one folder per run).
-- **[ONNX models](https://huggingface.co/GuillemPallares/models)** — all 11 models trained for this project, exported to ONNX with their config files.
 
 The visual components of this application (/src/screens) were generated with the assistance of AI using Cursor IDE, with minimal human intervention.
 
