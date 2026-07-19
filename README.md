@@ -7,6 +7,10 @@ quietly in the system tray while serving its UI to your browser on
 
 Developed for PFG GEINF.
 
+- **[MiniTransformerFromScratch](https://github.com/GuillemPalla/MiniTransformerFromScratch)** — base repo with the architectures and pipeline to train and evaluate the Lexis models this application runs.
+- **[Training artifacts](https://huggingface.co/GuillemPallares/MiniTransformerFromScratchModels)** — checkpoints and TensorBoard logs collected during training (one folder per run).
+- **[ONNX models](https://huggingface.co/GuillemPallares/models)** — all 11 models trained for this project, exported to ONNX with their config files.
+
 The visual components of this application (/src/screens) were generated with the assistance of AI using Cursor IDE, with minimal human intervention.
 
 The build pipeline (/build/windows), due to its complexity, was also developed with AI assistance, but involved significantly more human intervention, analysis, and refinement. See BUILD.md for more details.
